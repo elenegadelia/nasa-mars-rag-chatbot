@@ -1,10 +1,13 @@
 /**
- * Typed environment variables with early validation.
+ * Typed environment variables with lazy validation.
  *
- * IMPORTANT: This file accesses server-only secrets (service role key, OpenRouter key).
- * Import it only in server components, API routes, or Node scripts — never in client components.
+ * Properties use getters so validation fires on first access, not at import
+ * time. This lets Node.js scripts load dotenv before any env var is read,
+ * regardless of how the module bundler orders require() calls.
  *
- * Public variables (NEXT_PUBLIC_*) are safe to read anywhere via process.env directly.
+ * IMPORTANT: This file accesses server-only secrets.
+ * Import it only in server components, API routes, or Node scripts — never
+ * in client components.
  */
 
 function requireEnv(name: string): string {
@@ -20,20 +23,29 @@ function requireEnv(name: string): string {
 
 export const env = {
   // ── Supabase ──────────────────────────────────────────────────────────────
-  // Public URL is duplicated here for convenience in server-side code.
-  supabaseUrl: requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
+  // Public URL duplicated here for convenience in server-side code.
+  get supabaseUrl() {
+    return requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  },
 
   // Service role key bypasses Row Level Security — server/script use only.
-  supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  get supabaseServiceRoleKey() {
+    return requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  },
 
   // ── OpenRouter ────────────────────────────────────────────────────────────
-  openrouterApiKey: requireEnv("OPENROUTER_API_KEY"),
+  get openrouterApiKey() {
+    return requireEnv("OPENROUTER_API_KEY");
+  },
 
   // Falls back to a known free model if not set.
-  openrouterModel:
-    process.env.OPENROUTER_MODEL ?? "mistralai/mistral-7b-instruct:free",
+  get openrouterModel() {
+    return process.env.OPENROUTER_MODEL ?? "mistralai/mistral-7b-instruct:free";
+  },
 
   // ── Ingestion ─────────────────────────────────────────────────────────────
-  // Directory where NASA PDF files are stored locally. Used only by scripts/ingest.ts.
-  nasaPdfDir: process.env.NASA_PDF_DIR ?? "./data",
-} as const;
+  // Directory where NASA PDF files are stored. Used only by scripts/ingest.ts.
+  get nasaPdfDir() {
+    return process.env.NASA_PDF_DIR ?? "./data";
+  },
+};

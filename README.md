@@ -56,14 +56,52 @@ The service role key (server only) bypasses Row Level Security — used for inge
 ## Data Flow (Ingestion — runs once)
 
 ```
-NASA Mars PDFs (local)
+NASA Mars PDFs (data/raw/)
      │
      ▼
 scripts/ingest.ts
-     ├─► Parse PDF text (pdf-parse)
-     ├─► Chunk text (sliding window, ~500 tokens, 50-token overlap)
-     ├─► Embed each chunk (all-MiniLM-L6-v2 → vector[384])
-     └─► Upsert into Supabase `documents` table
+     ├─► Parse PDF page by page (pdf-parse + pagerender hook)
+     ├─► Chunk each page semantically (lib/rag/chunker.ts)
+     │       ├─ Split at blank-line boundaries → paragraph blocks
+     │       ├─ Classify blocks: heading | list | paragraph
+     │       ├─ Merge adjacent blocks greedily until size limit
+     │       ├─ Headings flush buffer + start new chunk
+     │       └─ Fallback: sentence-split for oversized blocks
+     ├─► Embed chunks in batches (lib/rag/embedder.ts → vector[384])
+     └─► Insert rows into Supabase `documents` table
+```
+
+### Chunking strategy in plain English
+
+PDF text extraction loses all formatting. The chunker recovers structure by pattern-matching:
+
+- **Paragraph boundaries**: blank lines in the extracted text separate logical blocks
+- **Heading detection**: short lines (< 120 chars) with no terminal punctuation that don't start with articles/prepositions
+- **List detection**: lines where ≥ 50% start with `-`, `•`, `1.`, `a)` etc.
+
+**Merging rules:**
+- A heading flushes whatever came before and starts a new chunk (the heading text is kept as the first line, so the content that follows it stays co-located with its heading)
+- List and paragraph blocks merge greedily until the token limit (~500 tokens ≈ 2000 chars)
+- If a merged block is still too large, sentence-boundary splitting is the fallback
+- Pure fixed-size character splitting is never the primary strategy
+
+**Why this matters for RAG:** headings and their content stay together → retrieved chunks are more self-contained and the model has structural context. List items don't split mid-item. Every chunk knows which section it came from via `section_title` in metadata.
+
+### Chunk metadata shape
+
+```json
+{
+  "source_file": "mars_2020_perseverance.pdf",
+  "document_title": "Mars 2020 Perseverance",
+  "page_number": 4,
+  "chunk_index": 17,
+  "chunk_type": "heading_section",
+  "char_start": 142,
+  "char_end": 891,
+  "section_title": "Science Objectives",
+  "token_estimate": 186,
+  "ingested_at": "2026-04-10T09:30:00.000Z"
+}
 ```
 
 ---
@@ -134,9 +172,29 @@ npm run dev                          # http://localhost:3000
 
 ## Ingestion (run once after Supabase schema is set up)
 
+Place NASA PDF files in `data/raw/` (or the directory set in `NASA_PDF_DIR`).
+
 ```bash
-# Optional: set NASA_PDF_DIR in .env.local, or place PDFs in data/
-npx tsx scripts/ingest.ts
+# Preview chunks without writing to the database
+npm run ingest:dry
+
+# Full ingestion — parses, embeds, and inserts all PDFs
+npm run ingest
+```
+
+On first run, the embedding model (~23 MB quantized) is downloaded and cached automatically.
+
+**Verify in Supabase:** after ingestion, run this query in the Supabase SQL editor:
+
+```sql
+-- Check total chunks and per-file breakdown
+SELECT
+  metadata->>'source_file' AS file,
+  COUNT(*)                  AS chunks,
+  AVG((metadata->>'token_estimate')::int) AS avg_tokens
+FROM documents
+GROUP BY metadata->>'source_file'
+ORDER BY file;
 ```
 
 ---
