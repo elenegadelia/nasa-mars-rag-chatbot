@@ -12,7 +12,7 @@ Built as a full-stack challenge project using entirely free tools.
 |---|---|
 | Frontend | Next.js 15 (App Router) + React |
 | UI styling | Tailwind CSS |
-| Chat streaming | Vercel AI SDK (`ai`, `@ai-sdk/openai`) |
+| Chat streaming | Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/openai`) |
 | Vector database | Supabase Postgres + pgvector |
 | Embeddings | `@xenova/transformers` — `all-MiniLM-L6-v2` (local, free, 384-dim) |
 | LLM generation | OpenRouter (free-tier models, e.g. Mistral, LLaMA) |
@@ -166,6 +166,52 @@ cp .env.local.example .env.local
 npm install
 cp .env.local.example .env.local   # then fill in your keys
 npm run dev                          # http://localhost:3000
+```
+
+The chat UI is live at `http://localhost:3000`. It will error clearly if ingestion hasn't been run or env vars are missing.
+
+---
+
+## Chat & Retrieval Flow
+
+```
+User types question
+     │
+     ▼
+POST /api/chat  (app/api/chat/route.ts)
+     │
+     ├─► Embed question locally (all-MiniLM-L6-v2, 384-dim)
+     │
+     ├─► Call Supabase match_documents (pgvector cosine similarity)
+     │       └─► Returns top-5 chunks above similarity threshold
+     │
+     ├─► Build system prompt:
+     │       "Answer ONLY from the context below. Cite sources inline.
+     │        If not covered, say so."
+     │       + numbered context passages (source_file, page_number)
+     │
+     ├─► streamText() via OpenRouter (Mistral 7B or configured model)
+     │
+     └─► Streaming response → client (Vercel AI SDK UI message stream)
+```
+
+### Citation behavior
+
+The system prompt instructs the model to:
+1. Cite passage numbers inline in the answer, e.g. `[1]`, `[2]`
+2. End every response with a `Sources:` block listing cited files and pages
+3. Say "I don't have enough context…" if no relevant chunks were retrieved
+
+Citations come from actual retrieved chunk metadata — never fabricated.
+
+### Retrieval logging
+
+During development, the server logs retrieval details to the console:
+```
+[chat] Retrieved 5 chunk(s) for query: "What are Perseverance's science goals?"
+  [1] humans_to_mars.pdf p.7 (similarity: 0.821, type: heading_section)
+  [2] mars_2020_perseverance.pdf p.3 (similarity: 0.804, type: paragraph)
+  ...
 ```
 
 ---
