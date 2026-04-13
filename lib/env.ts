@@ -23,7 +23,6 @@ function requireEnv(name: string): string {
 
 export const env = {
   // ── Supabase ──────────────────────────────────────────────────────────────
-  // Public URL duplicated here for convenience in server-side code.
   get supabaseUrl() {
     return requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   },
@@ -33,19 +32,19 @@ export const env = {
     return requireEnv("SUPABASE_SERVICE_ROLE_KEY");
   },
 
-  // ── OpenRouter ────────────────────────────────────────────────────────────
-  get openrouterApiKey() {
-    return requireEnv("OPENROUTER_API_KEY");
+  // ── Groq ──────────────────────────────────────────────────────────────────
+  get groqApiKey() {
+    return requireEnv("GROQ_API_KEY");
   },
 
-  // Falls back to a known free model if not set.
-  get openrouterModel() {
-    return process.env.OPENROUTER_MODEL ?? "mistralai/mistral-7b-instruct:free";
+  // Free, fast model on Groq. Override via GROQ_MODEL in .env.local.
+  get groqModel() {
+    return process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
   },
 
   // ── Ingestion ─────────────────────────────────────────────────────────────
   // Directory where NASA PDF files are stored. Used only by scripts/ingest.ts.
   get nasaPdfDir() {
-    return process.env.NASA_PDF_DIR ?? "./data";
+    return process.env.NASA_PDF_DIR ?? "./data/raw";
   },
 };

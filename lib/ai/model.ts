@@ -1,37 +1,33 @@
 /**
- * OpenRouter LLM configuration via Vercel AI SDK.
+ * Groq LLM configuration via Vercel AI SDK.
  *
- * OpenRouter is OpenAI API-compatible, so we use @ai-sdk/openai with a
- * custom baseURL. This lets us access free-tier models (Mistral, LLaMA, etc.)
- * without changing any downstream streaming code.
+ * Groq provides fast, free inference for open-source models (LLaMA, Gemma, etc.)
+ * with no credit card required on the free tier.
  *
- * The client is created lazily on first call — not at module load — so that
- * env validation only fires when a request actually arrives, not at build time.
+ * The client is created lazily on first call so env validation only fires
+ * when a request arrives, not at build time.
  *
  * Usage in an API route:
  *   import { getModel } from "@/lib/ai/model";
  *   const result = streamText({ model: getModel(), messages });
  */
 
-import { createOpenAI } from "@ai-sdk/openai";
+import { createGroq } from "@ai-sdk/groq";
 import { env } from "@/lib/env";
 
-let openrouter: ReturnType<typeof createOpenAI> | null = null;
+let groq: ReturnType<typeof createGroq> | null = null;
 
-function getOpenRouter() {
-  if (!openrouter) {
-    openrouter = createOpenAI({
-      baseURL: "https://openrouter.ai/api/v1",
-      apiKey: env.openrouterApiKey,
-    });
+function getGroq() {
+  if (!groq) {
+    groq = createGroq({ apiKey: env.groqApiKey });
   }
-  return openrouter;
+  return groq;
 }
 
 /**
- * Returns a Vercel AI SDK model instance pointed at OpenRouter.
- * Pass a model ID to override the default set in OPENROUTER_MODEL.
+ * Returns a Vercel AI SDK model instance pointed at Groq.
+ * Pass a model ID to override the default set in GROQ_MODEL.
  */
 export function getModel(modelId?: string) {
-  return getOpenRouter()(modelId ?? env.openrouterModel);
+  return getGroq()(modelId ?? env.groqModel);
 }

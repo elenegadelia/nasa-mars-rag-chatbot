@@ -15,7 +15,8 @@ export const config = {
     // Number of chunks returned by the vector similarity search.
     topK: 5,
     // Cosine similarity threshold — chunks below this score are discarded.
-    similarityThreshold: 0.5,
+    // all-MiniLM-L6-v2 typically scores relevant chunks between 0.2–0.5.
+    similarityThreshold: 0.2,
   },
 
   chunking: {

@@ -9,12 +9,15 @@
  * Requires .env.local to be present with Supabase credentials.
  */
 
-import "dotenv/config"; // must be first — populates process.env before lib imports use it
+// Load .env.local first (dotenv/config only loads .env by default)
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: ".env.local" });
+
 import fs from "fs";
 import path from "path";
-import * as pdfParseModule from "pdf-parse";
-// pdf-parse ships both CJS and ESM; the default export lives on .default in ESM context
-const pdfParse = (pdfParseModule as any).default ?? pdfParseModule;
+// pdf-parse v1 exports a single function via CJS — require() is the reliable import path
+const pdfParse: (buffer: Buffer, options?: any) => Promise<any> =
+  require("pdf-parse");
 import { chunkDocument, type DocumentChunk } from "@/lib/rag/chunker";
 import { embedBatch } from "@/lib/rag/embedder";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
