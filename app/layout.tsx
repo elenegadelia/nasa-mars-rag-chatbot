@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mars RAG Chatbot — NASA Documents",
-  description: "A retrieval-augmented generation chatbot powered by NASA Mars mission documents.",
+  title: "Mars AI Mission Control",
+  description:
+    "AI-powered Mars exploration intelligence grounded in official NASA documents.",
 };
 
 export default function RootLayout({
@@ -27,7 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-black">{children}</body>
     </html>
   );
 }

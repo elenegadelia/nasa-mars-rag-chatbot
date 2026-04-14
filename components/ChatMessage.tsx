@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type { UIMessage } from "ai";
 
 interface Props {
@@ -23,35 +24,41 @@ export default function ChatMessage({ message }: Props) {
 
   // Split at "Sources:" so we can style the citation block separately
   const sourcesIndex = text.indexOf("Sources:");
-  const mainText = sourcesIndex !== -1 ? text.slice(0, sourcesIndex).trim() : text;
+  const mainText =
+    sourcesIndex !== -1 ? text.slice(0, sourcesIndex).trim() : text;
   const sourcesText = sourcesIndex !== -1 ? text.slice(sourcesIndex) : null;
 
   return (
-    <div
-      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
-    >
-      {/* Avatar */}
+    <div className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+
+      {/* AI avatar */}
       {!isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-900/60 flex items-center justify-center text-xs font-bold text-red-300 mt-1">
-          M
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-700 to-indigo-800 border border-purple-500/30 flex items-center justify-center text-sm mt-1 shadow-md shadow-purple-950/50">
+          🛸
         </div>
       )}
 
-      <div className={`max-w-[80%] space-y-2 ${isUser ? "items-end" : "items-start"} flex flex-col`}>
-        {/* Main answer bubble */}
-        <div
-          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+      <div
+        className={`max-w-[80%] space-y-2 flex flex-col ${
+          isUser ? "items-end" : "items-start"
+        }`}
+      >
+        {/* Main bubble */}
+        <motion.div
+          whileHover={{ scale: 1.008 }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          className={`rounded-2xl px-4 py-3.5 text-sm leading-relaxed whitespace-pre-wrap ${
             isUser
-              ? "bg-red-900/30 text-white rounded-tr-none"
-              : "bg-zinc-800 text-zinc-100 rounded-tl-none"
+              ? "bubble-user text-purple-50 rounded-tr-none"
+              : "bubble-ai text-slate-100 rounded-tl-none"
           }`}
         >
           {mainText}
-        </div>
+        </motion.div>
 
-        {/* Sources block — only shown on assistant messages */}
+        {/* Sources block — assistant only */}
         {!isUser && sourcesText && (
-          <div className="rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-2 text-xs text-zinc-400 whitespace-pre-wrap w-full">
+          <div className="sources-block rounded-xl px-4 py-3 text-xs text-purple-400/65 whitespace-pre-wrap w-full font-mono leading-relaxed">
             {sourcesText}
           </div>
         )}
@@ -59,7 +66,7 @@ export default function ChatMessage({ message }: Props) {
 
       {/* User avatar */}
       {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300 mt-1">
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-purple-800 border border-violet-500/30 flex items-center justify-center text-xs font-bold text-violet-200 mt-1 shadow-md shadow-purple-950/50">
           U
         </div>
       )}
