@@ -18,7 +18,7 @@ import { env } from "@/lib/env";
 import { config } from "@/lib/config";
 
 const HF_API_URL =
-  "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2";
+  "https://router.huggingface.co/hf-inference/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2";
 
 /**
  * Call the HuggingFace Inference API to embed one or more strings.
