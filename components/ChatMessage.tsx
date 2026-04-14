@@ -56,8 +56,8 @@ export default function ChatMessage({ message }: Props) {
           {mainText}
         </motion.div>
 
-        {/* Sources block — assistant only */}
-        {!isUser && sourcesText && (
+        {/* Sources block — assistant only. Hidden when sources are empty or "None". */}
+        {!isUser && sourcesText && !/none/i.test(sourcesText.replace("Sources:", "").trim()) && (
           <div className="sources-block rounded-xl px-4 py-3 text-xs text-purple-400/65 whitespace-pre-wrap w-full font-mono leading-relaxed">
             {sourcesText}
           </div>
