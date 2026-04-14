@@ -1,55 +1,76 @@
 /**
- * Local text embedder using @xenova/transformers.
+ * Text embedder using the Hugging Face Inference API.
  *
- * Model: all-MiniLM-L6-v2 (384-dim) — runs entirely locally, no API cost.
- * On first use, the model (~23 MB quantized) is downloaded and cached.
- * Subsequent runs reuse the cache.
+ * Model: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
+ * This is the same model previously run locally — stored vectors in Supabase
+ * are fully compatible, no re-ingestion needed.
  *
- * Compatible with the vector(384) column in Supabase.
- * Reusable for both ingestion (scripts/ingest.ts) and query embedding (API route).
+ * Using the HF API makes the embedder compatible with Vercel serverless
+ * functions, which cannot run native binaries like ONNX Runtime.
+ *
+ * Free tier: 1000 requests/day on HuggingFace Inference API.
+ *
+ * For local ingestion, @xenova/transformers is still available in devDependencies.
+ * Run ingestion locally with: npm run ingest
  */
 
-import { pipeline, type FeatureExtractionPipeline } from "@xenova/transformers";
+import { env } from "@/lib/env";
 import { config } from "@/lib/config";
 
-// Singleton — avoid reloading the model on every call
-let embedder: FeatureExtractionPipeline | null = null;
+const HF_API_URL =
+  "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2";
 
-async function getEmbedder(): Promise<FeatureExtractionPipeline> {
-  if (!embedder) {
-    console.log(`Loading embedding model: ${config.embedding.model} ...`);
-    embedder = await pipeline("feature-extraction", config.embedding.model, {
-      quantized: true, // use quantized weights — faster load, ~same quality
-    });
-    console.log("Embedding model ready.");
+/**
+ * Call the HuggingFace Inference API to embed one or more strings.
+ * Returns a 2D array: one 384-dim vector per input string.
+ */
+async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
+  const response = await fetch(HF_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.huggingfaceApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      inputs: texts,
+      options: { wait_for_model: true }, // wait if model is cold-starting
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`HuggingFace API error (${response.status}): ${error}`);
   }
-  return embedder;
+
+  const result = await response.json();
+
+  // HF returns either number[][] directly, or wraps single input in number[]
+  if (Array.isArray(result[0]?.[0])) {
+    return result as number[][];
+  }
+  // Single input returns a flat number[] — wrap it
+  return [result as number[]];
 }
 
 /**
  * Embed a single string. Returns a plain number[] (length 384).
  */
 export async function embedText(text: string): Promise<number[]> {
-  const model = await getEmbedder();
-  const output = await model(text, { pooling: "mean", normalize: true });
-  return Array.from(output.data as Float32Array);
+  const embeddings = await fetchEmbeddings([text]);
+  const vec = embeddings[0];
+  if (vec.length !== config.embedding.dimension) {
+    throw new Error(
+      `Embedding dimension mismatch: expected ${config.embedding.dimension}, got ${vec.length}`
+    );
+  }
+  return vec;
 }
 
 /**
- * Embed multiple strings in one model call.
- * Returns an array of embeddings, one per input string, each length 384.
- *
- * Prefer this over calling embedText() in a loop — it's faster for large batches.
+ * Embed multiple strings. Returns one 384-dim vector per input.
+ * HuggingFace processes the batch in a single API call.
  */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-
-  const model = await getEmbedder();
-  const output = await model(texts, { pooling: "mean", normalize: true });
-
-  // output.data is a flat Float32Array of shape [batch_size × dimension]
-  const dim = config.embedding.dimension;
-  const flat = Array.from(output.data as Float32Array);
-
-  return texts.map((_, i) => flat.slice(i * dim, (i + 1) * dim));
+  return fetchEmbeddings(texts);
 }
