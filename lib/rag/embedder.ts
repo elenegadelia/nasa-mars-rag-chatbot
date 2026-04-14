@@ -1,62 +1,66 @@
 /**
- * Text embedder using the Hugging Face Inference API.
+ * Text embedder using the Cohere Inference API.
  *
- * Model: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
- * This is the same model previously run locally — stored vectors in Supabase
- * are fully compatible, no re-ingestion needed.
+ * Model: embed-english-light-v3.0 (384-dim)
+ * Same dimension as the previous all-MiniLM-L6-v2 model, so the
+ * Supabase vector(384) column needs no schema change.
  *
- * Using the HF API makes the embedder compatible with Vercel serverless
- * functions, which cannot run native binaries like ONNX Runtime.
+ * IMPORTANT: After switching to Cohere you must re-ingest all PDFs,
+ * because the two models produce incompatible vector spaces:
+ *   DELETE FROM documents;   -- in Supabase SQL editor
+ *   npm run ingest            -- re-embed locally
  *
- * Free tier: 1000 requests/day on HuggingFace Inference API.
+ * Free tier: https://dashboard.cohere.com (no credit card required)
  *
- * For local ingestion, @xenova/transformers is still available in devDependencies.
- * Run ingestion locally with: npm run ingest
+ * Cohere uses different input types for indexing vs querying:
+ *   embedBatch → "search_document"  (used during ingestion)
+ *   embedText  → "search_query"     (used at query time)
  */
 
 import { env } from "@/lib/env";
 import { config } from "@/lib/config";
 
-// OpenAI-compatible embeddings endpoint on HuggingFace router
-const HF_API_URL =
-  "https://router.huggingface.co/hf-inference/v1/embeddings";
+const COHERE_API_URL = "https://api.cohere.com/v2/embed";
+const COHERE_MODEL = "embed-english-light-v3.0"; // 384-dim
 
-const HF_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
+type CohereInputType = "search_query" | "search_document";
 
 /**
- * Call the HuggingFace Inference API to embed one or more strings.
+ * Call the Cohere Embed API to embed one or more strings.
  * Returns a 2D array: one 384-dim vector per input string.
  */
-async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
-  const response = await fetch(HF_API_URL, {
+async function fetchEmbeddings(
+  texts: string[],
+  inputType: CohereInputType
+): Promise<number[][]> {
+  const response = await fetch(COHERE_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.huggingfaceApiKey}`,
+      Authorization: `Bearer ${env.cohereApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: HF_MODEL,
-      input: texts,
+      model: COHERE_MODEL,
+      texts,
+      input_type: inputType,
+      embedding_types: ["float"],
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`HuggingFace API error (${response.status}): ${error}`);
+    throw new Error(`Cohere API error (${response.status}): ${error}`);
   }
 
-  // OpenAI-compatible response: { data: [{ embedding: number[], index: number }] }
   const result = await response.json();
-  return result.data.map(
-    (item: { embedding: number[]; index: number }) => item.embedding
-  );
+  return result.embeddings.float as number[][];
 }
 
 /**
- * Embed a single string. Returns a plain number[] (length 384).
+ * Embed a single query string. Returns a plain number[] (length 384).
  */
 export async function embedText(text: string): Promise<number[]> {
-  const embeddings = await fetchEmbeddings([text]);
+  const embeddings = await fetchEmbeddings([text], "search_query");
   const vec = embeddings[0];
   if (vec.length !== config.embedding.dimension) {
     throw new Error(
@@ -67,10 +71,10 @@ export async function embedText(text: string): Promise<number[]> {
 }
 
 /**
- * Embed multiple strings. Returns one 384-dim vector per input.
- * HuggingFace processes the batch in a single API call.
+ * Embed multiple document strings. Returns one 384-dim vector per input.
+ * Used during ingestion — Cohere processes the batch in a single API call.
  */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  return fetchEmbeddings(texts);
+  return fetchEmbeddings(texts, "search_document");
 }

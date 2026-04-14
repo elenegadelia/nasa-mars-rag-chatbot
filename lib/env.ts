@@ -37,10 +37,10 @@ export const env = {
     return requireEnv("GROQ_API_KEY");
   },
 
-  // ── HuggingFace ───────────────────────────────────────────────────────────
-  // Used at query time to embed the user's question via the Inference API.
-  get huggingfaceApiKey() {
-    return requireEnv("HUGGINGFACE_API_KEY");
+  // ── Cohere ────────────────────────────────────────────────────────────────
+  // Used at query time to embed the user's question (embed-english-light-v3.0).
+  get cohereApiKey() {
+    return requireEnv("COHERE_API_KEY");
   },
 
   // Free, fast model on Groq. Override via GROQ_MODEL in .env.local.

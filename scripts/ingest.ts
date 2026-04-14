@@ -182,6 +182,11 @@ async function ingest(): Promise<void> {
 
       const progress = Math.min(i + BATCH_SIZE, chunks.length);
       process.stdout.write(`\r  Embedded: ${progress}/${chunks.length}`);
+
+      // Cohere trial tier: 100k tokens/min. Sleep between batches to stay under.
+      if (i + BATCH_SIZE < chunks.length) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
     }
     console.log(); // newline after progress
 
