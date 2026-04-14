@@ -113,10 +113,10 @@ export default function ChatPage() {
                     <div className="flex-1 h-px bg-purple-800/30" />
                   </div>
 
-                  <p className="text-purple-200/55 text-sm mb-1">
+                  <p className="text-white/80 text-sm mb-1">
                     Your AI guide to NASA&apos;s Mars exploration program.
                   </p>
-                  <p className="text-purple-400/35 text-xs mb-8">
+                  <p className="text-purple-200/60 text-xs mb-8">
                     Select an objective below or compose your own query.
                   </p>
 
@@ -135,7 +135,7 @@ export default function ChatPage() {
                         }}
                         whileTap={{ scale: 0.985 }}
                         onClick={() => submitMessage(q)}
-                        className="group text-sm text-purple-300/65 border border-purple-800/35 bg-purple-950/15 rounded-xl px-5 py-3 max-w-md w-full text-left flex items-start gap-3 transition-colors"
+                        className="group text-sm text-white/75 border border-purple-800/35 bg-purple-950/15 rounded-xl px-5 py-3 max-w-md w-full text-left flex items-start gap-3 transition-colors"
                       >
                         <span className="text-purple-600/50 group-hover:text-purple-400 font-mono text-xs mt-0.5 flex-shrink-0 transition-colors">
                           →
