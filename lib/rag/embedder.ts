@@ -17,8 +17,11 @@
 import { env } from "@/lib/env";
 import { config } from "@/lib/config";
 
+// OpenAI-compatible embeddings endpoint on HuggingFace router
 const HF_API_URL =
-  "https://router.huggingface.co/hf-inference/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2";
+  "https://router.huggingface.co/hf-inference/v1/embeddings";
+
+const HF_MODEL = "sentence-transformers/all-MiniLM-L6-v2";
 
 /**
  * Call the HuggingFace Inference API to embed one or more strings.
@@ -32,8 +35,8 @@ async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      inputs: texts,
-      options: { wait_for_model: true }, // wait if model is cold-starting
+      model: HF_MODEL,
+      input: texts,
     }),
   });
 
@@ -42,14 +45,11 @@ async function fetchEmbeddings(texts: string[]): Promise<number[][]> {
     throw new Error(`HuggingFace API error (${response.status}): ${error}`);
   }
 
+  // OpenAI-compatible response: { data: [{ embedding: number[], index: number }] }
   const result = await response.json();
-
-  // HF returns either number[][] directly, or wraps single input in number[]
-  if (Array.isArray(result[0]?.[0])) {
-    return result as number[][];
-  }
-  // Single input returns a flat number[] — wrap it
-  return [result as number[]];
+  return result.data.map(
+    (item: { embedding: number[]; index: number }) => item.embedding
+  );
 }
 
 /**
