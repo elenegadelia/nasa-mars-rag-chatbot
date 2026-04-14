@@ -1,13 +1,15 @@
 /**
  * POST /api/chat
  *
- * Streaming chat endpoint using Vercel AI SDK + OpenRouter.
+ * Streaming chat endpoint using Vercel AI SDK + Groq.
  * RAG flow:
  *   1. Extract the latest user message
- *   2. Embed it locally (384-dim)
- *   3. Retrieve top-k relevant chunks from Supabase pgvector
- *   4. Build a grounded system prompt with retrieved context
- *   5. Stream the LLM response back to the client
+ *   2. Embed it via Cohere API (384-dim)
+ *   3. Retrieve top-k chunks from Supabase pgvector
+ *   4. Apply stage-2 relevance filter (similarity >= 0.3, max 3 chunks)
+ *   5. If no chunks survive → return a plain fallback response, no LLM call
+ *   6. Build a strict grounded system prompt with retrieved context
+ *   7. Stream the LLM response back to the client
  *
  * All API keys are server-only — never sent to the client.
  */
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
     return new Response("No user message found", { status: 400 });
   }
 
-  // Retrieve relevant chunks from Supabase
+  // Retrieve and filter relevant chunks from Supabase
   let chunks;
   try {
     chunks = await retrieveChunks(queryText);
@@ -59,24 +61,42 @@ export async function POST(req: Request) {
     });
   }
 
+  // Hard fallback: no chunks survived relevance filtering → do not call the LLM.
+  // Returning a plain Response avoids any risk of hallucination.
+  if (chunks.length === 0) {
+    console.log("[chat] No relevant chunks after filtering — returning fallback");
+
+    // Wrap as a minimal AI SDK UI stream so the frontend handles it correctly
+    const result = streamText({
+      model: getModel(),
+      system: "You are a helpful assistant. Reply with the user's message verbatim, nothing else.",
+      messages: [
+        {
+          role: "user",
+          content:
+            "The provided documents do not contain relevant information for this question. " +
+            "Please try rephrasing or ask something related to NASA Mars exploration.",
+        },
+      ],
+    });
+    return result.toUIMessageStreamResponse();
+  }
+
   const context = formatContextForPrompt(chunks);
 
-  // Build the grounded system prompt
-  const systemPrompt = `You are a knowledgeable assistant specializing in NASA's Mars exploration program.
+  // Build the strict grounded system prompt
+  const systemPrompt = `You are a strict NASA Mars exploration assistant. Your ONLY knowledge source is the context passages provided below.
 
-You must answer questions ONLY using the context passages provided below.
-Each passage is prefixed with its source: [number] filename, page N.
-
-Rules:
-- Base every claim on the provided context. Do not add information from memory.
-- When you use information from a passage, cite its number inline, e.g. [1] or [2].
-- If the provided context does not contain enough information to answer the question, say clearly: "I don't have enough context in the retrieved documents to answer that question."
-- Do not speculate or present unsupported claims as facts.
-- Keep answers concise and informative.
-- End your response with a "Sources:" section listing the passages you cited, formatted as:
+ABSOLUTE RULES — follow these without exception:
+1. Answer ONLY using information explicitly stated in the passages below. Never use your training knowledge.
+2. Cite EVERY claim inline using the passage number, e.g. [1] or [2].
+3. Only cite a passage if it directly supports the specific claim you are making. Do NOT cite a passage just because it is vaguely related.
+4. If the passages do not explicitly contain enough information to answer, respond with exactly: "The provided documents do not contain this information."
+5. Do NOT speculate, infer, or add context beyond what the passages state.
+6. You MUST end every answer with a "Sources:" block listing ONLY the passages you actually cited:
     Sources:
     [1] filename — page N
-    [2] filename — page N
+   If you cited no passages, use rule 4 instead of answering.
 
 --- CONTEXT ---
 ${context}
