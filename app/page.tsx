@@ -8,7 +8,7 @@ import StarField from "@/components/StarField";
 
 const EXAMPLE_QUESTIONS = [
   "What are the main challenges of sending humans to Mars?",
-  "What does NASA say about life support on Mars missions?",
+  "What is the main purpose of NASA’s Mars Exploration Program (MEP)?",
   "What technologies are needed for sustainable Mars exploration?",
 ];
 
